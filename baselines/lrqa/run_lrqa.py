@@ -178,6 +178,11 @@ def main():
         truncation_strategy=model_args.truncation_strategy,
         model_mode=model_args.model_mode,
     )
+    #for item in tokenized_dataset_dict['train']:
+        #print(item.keys())
+        #for key2 in item:
+            #print(key2)
+            #print(item[key2].shape)
     if model_args.model_mode == "mc":
         trainer = Trainer(
             model=model,

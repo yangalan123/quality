@@ -10,6 +10,7 @@ import nltk
 import transformers
 import torch.nn.functional as F
 from tqdm import auto as tqdm_lib
+import copy
 
 
 def tqdm(iterable=None, desc=None, total=None, initial=0):
@@ -245,59 +246,88 @@ def get_top_sentences(query: str, sent_data: list, max_word_count: int, scorer: 
 def process_file(input_path, output_path, scorer: SimpleScorer, query_type="question", max_word_count=300,
                  verbose=False, clean_text=True, original_article=False):
     data = read_jsonl(input_path)
-    out = []
-    for row in maybe_tqdm(data, verbose=verbose):
-        sent_data = get_sent_data(row["article"], clean_text=clean_text)
-        #i = 1
-        #while True:
-            #if f"question{i}" not in row:
-                #break
-        questions = row["questions"]
-        for q in questions:
-            if "gold_label" in q:
-                gold_label_id = q['gold_label'] - 1
-            else:
-                assert "test" in input_path
-                gold_label_id = random.sample(range(4), 1)[0]
-            gold_label = q['options'][gold_label_id].strip()
-            if query_type == "question":
-                #query = row[f"question{i}"].strip()
-                query = q['question'].strip()
-            elif query_type == "oracle_answer":
-                #query = row[f"question{i}option{row[f'question{i}_gold_label']}"].strip()
-                query = gold_label
-            elif query_type == "oracle_question_answer":
-                #query = (
-                    #row[f"question{i}"].strip()
-                    #+ " " + row[f"question{i}option{row['question{i}_gold_label']}"].strip()
-                #)
-                query = q['question'].strip() + gold_label
-            else:
-                raise KeyError(query_type)
-            if not original_article:
-                shortened_article = get_top_sentences(
-                    query=query,
-                    sent_data=sent_data,
-                    max_word_count=max_word_count,
-                    scorer=scorer,
-                )
-            else:
-                #shortened_article = " ".join([x['text'] for x in sent_data])
-                shortened_article = ""
-            out.append({
-                "context": shortened_article,
-                #"query": " " + row[f"question{i}"].strip(),
-                "query": " " + q['question'].strip(),
-                #"option_0": " " + row[f"question{i}option1"].strip(),
-                "option_0": " " + q['options'][0].strip(),
-                #"option_1": " " + row[f"question{i}option2"].strip(),
-                "option_1": " " + q['options'][1].strip(),
-                #"option_2": " " + row[f"question{i}option3"].strip(),
-                "option_2": " " + q['options'][2].strip(),
-                #"option_3": " " + row[f"question{i}option4"].strip(),
-                "option_3": " " + q['options'][3].strip(),
-                #"label": row[f"question{i}_gold_label"] - 1,
-                "label": gold_label_id
-            })
-        #i += 1
-    write_jsonl(out, output_path)
+    num_agents = 5
+    agents_doc_to_ids = dict()
+    example_flag = False
+    for agent_i in range(num_agents):
+        out = []
+        for row in maybe_tqdm(data, verbose=verbose):
+            article = row['article']
+            sent_data = get_sent_data(row["article"], clean_text=clean_text)
+            if article not in agents_doc_to_ids:
+                #agents_doc_to_ids[article] = list()
+                ret = []
+                sent_ids = list(range(len(sent_data)))
+                random.shuffle(sent_ids)
+                num_per_split = len(sent_ids) // num_agents
+                for split_i in range(num_agents):
+                    cur_split_ids = sent_ids[split_i * num_per_split: (split_i + 1) * num_per_split]
+                    cur_sentences = [sent_data[x] for x in cur_split_ids]
+                    ret.append(cur_sentences)
+                agents_doc_to_ids[article] = copy.deepcopy(ret)
+                if example_flag:
+                    print("sent_ids", len(sent_ids))
+                    for item in ret:
+                        print("####passage###")
+                        print("".join([x['text'] for x in item]) + "\n")
+                        print("####passage###")
+                    for item in ret:
+                        print(len(item))
+                    example_flag = False
+            sent_data = agents_doc_to_ids[article][agent_i]
+            #i = 1
+            #while True:
+                #if f"question{i}" not in row:
+                    #break
+            questions = row["questions"]
+            for q in questions:
+                if "gold_label" in q:
+                    gold_label_id = q['gold_label'] - 1
+                else:
+                    assert "test" in input_path
+                    gold_label_id = random.sample(range(4), 1)[0]
+                gold_label = q['options'][gold_label_id].strip()
+                if query_type == "question":
+                    #query = row[f"question{i}"].strip()
+                    query = q['question'].strip()
+                elif query_type == "oracle_answer":
+                    #query = row[f"question{i}option{row[f'question{i}_gold_label']}"].strip()
+                    query = gold_label
+                elif query_type == "oracle_question_answer":
+                    #query = (
+                        #row[f"question{i}"].strip()
+                        #+ " " + row[f"question{i}option{row['question{i}_gold_label']}"].strip()
+                    #)
+                    query = q['question'].strip() + gold_label
+                else:
+                    raise KeyError(query_type)
+                if not original_article:
+                    shortened_article = get_top_sentences(
+                        query=query,
+                        sent_data=sent_data,
+                        max_word_count=max_word_count,
+                        scorer=scorer,
+                    )
+                else:
+                    shortened_article = " ".join([x['text'] for x in sent_data])
+                #print(f"#####shortened article for {agent_i}########")
+                #print(shortened_article)
+                #print(f"#####shortened article for {agent_i}########")
+                    #shortened_article = ""
+                out.append({
+                    "context": shortened_article,
+                    #"query": " " + row[f"question{i}"].strip(),
+                    "query": " " + q['question'].strip(),
+                    #"option_0": " " + row[f"question{i}option1"].strip(),
+                    "option_0": " " + q['options'][0].strip(),
+                    #"option_1": " " + row[f"question{i}option2"].strip(),
+                    "option_1": " " + q['options'][1].strip(),
+                    #"option_2": " " + row[f"question{i}option3"].strip(),
+                    "option_2": " " + q['options'][2].strip(),
+                    #"option_3": " " + row[f"question{i}option4"].strip(),
+                    "option_3": " " + q['options'][3].strip(),
+                    #"label": row[f"question{i}_gold_label"] - 1,
+                    "label": gold_label_id
+                })
+            #i += 1
+        write_jsonl(out, output_path + f".agent_{agent_i}")
