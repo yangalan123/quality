@@ -5,7 +5,9 @@ export TRANSFORMERS_CACHE=/data/chenghao/transformers_cache
 #for experiment in extractive_dpr extractive_rouge oracle pegasus_sum pegasus_sum_300
 #for experiment in extractive_rouge_oracle_answer extractive_rouge_no_question extractive_rouge_full
 #for experiment in pegasus_sum_300_dprwiki_5  pegasus_sum_300_dprwiki_w_sum_5
-for experiment in question_only_300_dprwiki_w_sum_5
+#for experiment in question_only_300_dprwiki_w_sum_5
+for experiment in 0 1 2 3 4
+#for experiment in fiction no_fiction
 do
     #echo ${experiment}
 #EXPDIR=./experiment/extract_epoch_20
@@ -16,12 +18,19 @@ do
     #--model_name_or_path roberta-base \
         #--task_base_path ./quality_data/extractive_dpr_2 \
         #--do_train \
-    EXPDIR=./experiment/race_deberta_large_epoch_20/${experiment}
-    CUDA_VISIBLE_DEVICES=0,1 python lrqa/run_lrqa.py \
+        #--task_base_path ./quality_data/${experiment} \
+    #base_exp_dir=extractive_dpr_agent/agent
+    #base_exp_dir=dpr_agent_pegasus_sum_300_concat/agent
+    base_exp_dir=dpr_agent_dpr_sum_300_concat/agent
+    #base_exp_dir=pegasus_sum_300_dprwiki_5
+    #base_exp_dir=pegasus_sum_300
+    EXPDIR=./experiment/race_deberta_large_epoch_20/${base_exp_dir}_${experiment}
+    #EXPDIR=./experiment/race_deberta_large_epoch_20/${base_exp_dir}/${experiment}
+    CUDA_VISIBLE_DEVICES=0 python lrqa/run_lrqa.py \
         --model_name_or_path "./experiment/race_deberta_v3_large_epoch_20/checkpoint-best" \
         --model_mode mc \
         --task_name custom \
-        --task_base_path ./quality_data/${experiment} \
+        --task_base_path ./quality_data/${base_exp_dir}_${experiment} \
         --learning_rate 1e-5 \
         --num_train_epochs 20 \
         --output_dir ${EXPDIR} \

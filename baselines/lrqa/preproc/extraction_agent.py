@@ -258,10 +258,16 @@ def process_file(input_path, output_path, scorer: SimpleScorer, query_type="ques
                 #agents_doc_to_ids[article] = list()
                 ret = []
                 sent_ids = list(range(len(sent_data)))
-                random.shuffle(sent_ids)
+                #random.shuffle(sent_ids)
                 num_per_split = len(sent_ids) // num_agents
                 for split_i in range(num_agents):
-                    cur_split_ids = sent_ids[split_i * num_per_split: (split_i + 1) * num_per_split]
+                    #cur_split_ids = sent_ids[split_i * num_per_split: (split_i + 1) * num_per_split]
+                    if split_i == 0:
+                        #cur_split_ids = []
+                        cur_split_ids = sent_ids
+                    else:
+                        #cur_split_ids = sent_ids[: (split_i) * num_per_split]
+                        cur_split_ids = sent_ids[(split_i) * num_per_split: ]
                     cur_sentences = [sent_data[x] for x in cur_split_ids]
                     ret.append(cur_sentences)
                 agents_doc_to_ids[article] = copy.deepcopy(ret)

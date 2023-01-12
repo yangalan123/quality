@@ -8,6 +8,6 @@ export TRANSFORMERS_CACHE=/data/chenghao/transformers_cache
     #--query_type question
 python lrqa/scripts/extraction_agent.py \
     --input_base_path ./quality_data/original \
-    --output_base_path ./quality_data/extractive_dpr_agent \
+    --output_base_path ./quality_data/extractive_dpr_agent_rest \
     --scorer dpr \
     --query_type question
