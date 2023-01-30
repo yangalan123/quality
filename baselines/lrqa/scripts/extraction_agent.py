@@ -28,6 +28,8 @@ def main():
                         help="Path to write processed outputs to")
     parser.add_argument("--scorer", type=str, default="rouge",
                         help="{rouge, fasttext, dpr}")
+    parser.add_argument("--max_word_count", type=int, default=300,
+                        help="max number of words for summaries")
     parser.add_argument("--query_type", type=str, default="question",
                         help="{question, oracle_answer, oracle_question_answer}")
     parser.add_argument("--fasttext_path", type=str, default="/path/to/crawl-300d-2M.vec",
@@ -42,6 +44,7 @@ def main():
             output_path=os.path.join(args.output_base_path, f"{phase}.jsonl"),
             scorer=scorer,
             query_type=args.query_type,
+            max_word_count=args.max_word_count,
             verbose=True,
             original_article=False
         )
