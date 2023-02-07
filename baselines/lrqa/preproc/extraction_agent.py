@@ -244,14 +244,22 @@ def get_top_sentences(query: str, sent_data: list, max_word_count: int, scorer: 
     return shortened_article
 
 
-def process_file(input_path, output_path, scorer: SimpleScorer, query_type="question", max_word_count=300,
-                 verbose=False, clean_text=True, original_article=False):
+def process_file(input_path, output_path, scorer: SimpleScorer, query_type="question", max_word_count=150,
+                 verbose=False, clean_text=True, original_article=False, agent_ids=None):
     data = read_jsonl(input_path)
+    #num_agents = 5
+    # for 5% 10% 15% exps
     num_agents = 20
     agents_doc_to_ids = dict()
     example_flag = False
+    if agent_ids is not None:
+        _agent_ids = [int(x) for x in agent_ids.split(",")]
+    else:
+        _agent_ids = None
     for agent_i in range(num_agents):
         out = []
+        #if agent_i >= 4:
+            #break
         for row in maybe_tqdm(data, verbose=verbose):
             article = row['article']
             sent_data = get_sent_data(row["article"], clean_text=clean_text)
@@ -262,13 +270,20 @@ def process_file(input_path, output_path, scorer: SimpleScorer, query_type="ques
                 #random.shuffle(sent_ids)
                 num_per_split = len(sent_ids) // num_agents
                 for split_i in range(num_agents):
+                    if _agent_ids is not None:
+                        if split_i not in _agent_ids:
+                            continue
                     #cur_split_ids = sent_ids[split_i * num_per_split: (split_i + 1) * num_per_split]
                     if split_i == 0:
-                        #cur_split_ids = []
-                        cur_split_ids = sent_ids
+                        if "first" in output_path:
+                            cur_split_ids = []
+                        else:
+                            cur_split_ids = sent_ids
                     else:
-                        #cur_split_ids = sent_ids[: (split_i) * num_per_split]
-                        cur_split_ids = sent_ids[(split_i) * num_per_split: ]
+                        if "first" in output_path:
+                            cur_split_ids = sent_ids[: (split_i) * num_per_split]
+                        else:
+                            cur_split_ids = sent_ids[(split_i) * num_per_split: ]
                     cur_sentences = [sent_data[x] for x in cur_split_ids]
                     ret.append(cur_sentences)
                 agents_doc_to_ids[article] = copy.deepcopy(ret)
