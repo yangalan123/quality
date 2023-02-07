@@ -147,11 +147,12 @@ class DPRScorer:
     def __init__(self,
                  context_encoder_name="facebook/dpr-ctx_encoder-multiset-base",
                  question_encoder_name="facebook/dpr-question_encoder-multiset-base",
+                 tokenizer_name="facebook/dpr-question_encoder-multiset-base",
                  device=None,
                  use_cache=True, verbose=True):
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.tokenizer = transformers.DPRQuestionEncoderTokenizer.from_pretrained(question_encoder_name)
+        self.tokenizer = transformers.DPRQuestionEncoderTokenizer.from_pretrained(tokenizer_name)
         self.context_encoder = transformers.DPRContextEncoder.from_pretrained(context_encoder_name).to(device)
         self.question_encoder = transformers.DPRQuestionEncoder.from_pretrained(question_encoder_name).to(device)
         self.device = device
@@ -246,7 +247,7 @@ def get_top_sentences(query: str, sent_data: list, max_word_count: int, scorer: 
 def process_file(input_path, output_path, scorer: SimpleScorer, query_type="question", max_word_count=300,
                  verbose=False, clean_text=True, original_article=False):
     data = read_jsonl(input_path)
-    num_agents = 5
+    num_agents = 20
     agents_doc_to_ids = dict()
     example_flag = False
     for agent_i in range(num_agents):

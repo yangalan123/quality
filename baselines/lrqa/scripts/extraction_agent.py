@@ -15,7 +15,9 @@ def get_scorer(scorer_name, args):
             max_lines=100_000,
         ))
     elif scorer_name == "dpr":
-        return extraction.DPRScorer(device="cuda:0")
+        return extraction.DPRScorer(context_encoder_name=args.dpr_scorer_ctx_encoder,
+                                    question_encoder_name=args.dpr_scorer_question_encoder,
+                                    tokenizer_name=args.dpr_scorer_tokenizer, device="cuda:0")
     else:
         raise KeyError(scorer_name)
 
@@ -28,6 +30,15 @@ def main():
                         help="Path to write processed outputs to")
     parser.add_argument("--scorer", type=str, default="rouge",
                         help="{rouge, fasttext, dpr}")
+    parser.add_argument("--dpr_scorer_ctx_encoder", type=str, default="facebook/dpr-ctx_encoder-multiset-base",
+                        help="dpr_scorer_ctx_encoder_path")
+    parser.add_argument("--dpr_scorer_question_encoder", type=str,
+                        default="facebook/dpr-question_encoder-multiset-base",
+                        help="dpr_scorer_question_encoder_path")
+    parser.add_argument("--dpr_scorer_tokenizer", type=str, default="facebook/dpr-question_encoder-multiset-base",
+                        help="dpr_scorer_tokenizer")
+    parser.add_argument("--agent_ids", type=str, default=",".join([str(x) for x in range(20)]),
+                        help="specific agent_ids")
     parser.add_argument("--query_type", type=str, default="question",
                         help="{question, oracle_answer, oracle_question_answer}")
     parser.add_argument("--fasttext_path", type=str, default="/path/to/crawl-300d-2M.vec",
@@ -43,7 +54,8 @@ def main():
             scorer=scorer,
             query_type=args.query_type,
             verbose=True,
-            original_article=False
+            original_article=False,
+            agent_ids=args.agent_ids
         )
 
     io.write_json(
