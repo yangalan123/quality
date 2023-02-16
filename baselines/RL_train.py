@@ -1,4 +1,6 @@
 import os.path
+
+import datasets
 import numpy as np
 
 from lrqa.preproc.extraction import get_sent_data
@@ -124,49 +126,100 @@ if __name__ == '__main__':
     #     revision=model_args.model_revision,
     # )
     # adjust_tokenizer(tokenizer)
-    scorer = DPRScorer(device="cuda:0")
     # ideally, they should be controlled via arguments. I will add that later
     NUM_AGENTS = 20
-    MAXLEN = 25
-    BATCH_SIZE = 20
+    MAXLEN = 150
+    BATCH_SIZE = 8
     LEARNING_RATE = 2e-5
+    # BOOKWISE = True
+    BOOKWISE = False
+    if BOOKWISE:
+        book_id = "30029"
     loss = torch.nn.BCELoss()
     logger.add("running_rl_log.txt")
     for agent_i in range(0, NUM_AGENTS, 5):
         logger.debug(f"Now doing training for {agent_i}")
-        optimizer = Adam(scorer.parameters(), lr=LEARNING_RATE)
-        # using training subset to avoid using validation data
-        # the deberta model is trained on RACE, so it should be fine
-        dataset = load_dataset("chromeNLP/quality", f"dpr-rest-{agent_i * 5}%-maxlen-{MAXLEN}")['train']
-        prediction_dir = f"/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/dpr_agent_dpr_sum_combine_20splits_maxlen_150_{MAXLEN}_concat/agent_{agent_i}/prediction"
-        predictions_logits = torch.load(os.path.join(prediction_dir, "train_predictions.p"))
-        predictions = np.argmax(predictions_logits, axis=-1)
-        answers = np.array([x['options'].index(x['output']) for x in dataset])
-        pragmatics_labels = torch.from_numpy(predictions == answers).int().tolist()
-        dataset = dataset.add_column("label", pragmatics_labels)
-        dataloader = DataLoader(dataset, batch_size=BATCH_SIZE)
-        counter = 0
-        _loss_values = 0
-        for batch in dataloader:
-            optimizer.zero_grad()
-            _batch_scores = []
-            questions = batch['question']
-            contexts = batch['context']
-            labels = batch['label']
-            questions_embeds = scorer.embed(questions, "question")
-            contexts_embeds = scorer.embed(contexts, "context")
-            scores = -torch.norm(questions_embeds.unsqueeze(-2) - contexts_embeds, dim=-1)
-            exp_scores = torch.exp(scores)
-            normalized_scores = exp_scores / torch.sum(exp_scores, dim=-1, keepdim=True)
-            _loss = loss(torch.diag(normalized_scores), labels.float().to(scorer.device))
-            _loss_values += _loss.cpu().item()
-            _loss.backward()
-            optimizer.step()
-            counter += len(questions)
-            if counter % (5 * BATCH_SIZE) == 0:
-                logger.info(f"Agent-{agent_i}-current progress: {counter}/{len(dataset)}, _loss: {_loss_values / counter * BATCH_SIZE}")
-        scorer.context_encoder.save_pretrained(os.path.join(prediction_dir, "ctx_encoder_model"))
-        scorer.question_encoder.save_pretrained(os.path.join(prediction_dir, "question_encoder_model"))
+        for seed in range(5):
+            scorer = DPRScorer(device="cuda:0")
+            optimizer = Adam(scorer.parameters(), lr=LEARNING_RATE)
+            # using training subset to avoid using validation data
+            # the deberta model is trained on RACE, so it should be fine
+            #prediction_dir = f"/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/dpr_agent_dpr_sum_combine_20splits_maxlen_150_{MAXLEN}_concat/agent_{agent_i}/prediction"
+            # prediction_dir = f"/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/dpr_agent_dpr_sum_combine_20splits_maxlen_150_concat/agent_{agent_i}/prediction"
+            prediction_dir = f"/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/dpr_agent_dpr_sum_combine_20splits_maxlen_150_150_rest_full_concat/agent_{agent_i}/prediction"
+            if not BOOKWISE:
+                dataset = load_dataset("chromeNLP/quality", f"dpr-rest-{agent_i * 5}%-maxlen-{MAXLEN}")['train']
+                predictions_logits = torch.load(os.path.join(prediction_dir, "train_predictions.p"))
+                predictions = np.argmax(predictions_logits, axis=-1)
+                epochs = 3
+            else:
+                experiment_name = f"{book_id}_agent{agent_i}.10shot.full.predfull.seed{seed}"
+                try:
+                    id_dataset = datasets.load_from_disk(os.path.join(prediction_dir, experiment_name))
+                    dataset = id_dataset.select(range(10))
+                    predictions = dataset["prediction"]
+                    assert len(dataset) > 0
+                    # assert 0 > 1 # use to enforce resample
+                except:
+                    #_dataset = load_dataset("chromeNLP/quality", f"dpr-rest-{agent_i * 5}%-maxlen-{MAXLEN}")['validation']
+                    _dataset = load_dataset("chromeNLP/quality", f"dpr-rest-0%-maxlen-{MAXLEN}")['validation']
+                    predictions_logits = torch.load(os.path.join(prediction_dir, "validation_predictions.p"))
+                    _predictions = np.argmax(predictions_logits, axis=-1).tolist()
+                    _dataset_extended = _dataset.add_column("prediction", _predictions)
+                    # print(len(_dataset_extended))
+                    id_dataset = _dataset_extended.filter(lambda x: x['article_id'] == book_id)
+                    # print(len(id_dataset))
+                    id_dataset = id_dataset.shuffle(seed=seed)
+                    dataset = id_dataset.select(range(10))
+                    predictions = np.array(dataset["prediction"])
+                    #torch.save(dataset, os.path.join(prediction_dir, f"{book_id}_agent{agent_i}.p"))
+                    id_dataset.save_to_disk(os.path.join(prediction_dir, experiment_name))
+                BATCH_SIZE = min(len(dataset), BATCH_SIZE)
+                epochs = 10
+                assert len(dataset) > 0
+            answers = np.array([x['options'].index(x['output']) for x in dataset])
+            pragmatics_labels = torch.from_numpy(predictions == answers).int().tolist()
+            dataset = dataset.add_column("label", pragmatics_labels)
+            dataloader = DataLoader(dataset, batch_size=BATCH_SIZE)
+            counter = 0
+            _loss_values = 0
+            for epoch_i in range(epochs):
+                for batch in dataloader:
+                    optimizer.zero_grad()
+                    _batch_scores = []
+                    questions = batch['question']
+                    contexts = batch['context']
+                    labels = batch['label']
+                    questions_embeds = scorer.embed(questions, "question")
+                    contexts_embeds = scorer.embed(contexts, "context")
+                    # scores = -torch.norm(questions_embeds.unsqueeze(-2) - contexts_embeds, dim=-1)
+                    # exp_scores = torch.exp(scores)
+                    #print(questions_embeds.shape, contexts_embeds.shape)
+                    scores = questions_embeds.matmul(contexts_embeds.transpose(0, 1))
+                    # normalized_scores = exp_scores / torch.sum(exp_scores, dim=-1, keepdim=True)
+                    normalized_scores = torch.softmax(scores, dim=-1)
+                    _loss = loss(torch.diag(normalized_scores), labels.float().to(scorer.device))
+                    _loss_values += _loss.cpu().item()
+                    _loss.backward()
+                    optimizer.step()
+                    counter += len(questions)
+                    if not BOOKWISE:
+                        if counter % (5 * BATCH_SIZE) == 0:
+                            logger.info(f"Agent-{agent_i}-current progress: {counter}/{len(dataset)}, _loss: {_loss_values / counter * BATCH_SIZE}")
+                    else:
+                        logger.info(
+                            f"Agent-{agent_i}-current progress: {counter}/{len(dataset)}, _loss: {_loss_values / counter * BATCH_SIZE}")
+            if not BOOKWISE:
+                scorer.context_encoder.save_pretrained(os.path.join(prediction_dir, "ctx_encoder_model_dotprod_restart"))
+                scorer.question_encoder.save_pretrained(os.path.join(prediction_dir, "question_encoder_model_dotprod_restart"))
+            else:
+                book_id_dir = os.path.join(prediction_dir, f"bookwise_{book_id}", f"seed_{seed}")
+                os.makedirs(book_id_dir, exist_ok=True)
+                scorer.context_encoder.save_pretrained(os.path.join(book_id_dir, "ctx_encoder_model_dotprod_restart"))
+                scorer.question_encoder.save_pretrained(os.path.join(book_id_dir, "question_encoder_model_dotprod_restart"))
+
+
+            del scorer
 
 
 

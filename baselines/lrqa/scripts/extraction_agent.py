@@ -18,6 +18,8 @@ def get_scorer(scorer_name, args):
         return extraction.DPRScorer(context_encoder_name=args.dpr_scorer_ctx_encoder,
                                     question_encoder_name=args.dpr_scorer_question_encoder,
                                     tokenizer_name=args.dpr_scorer_tokenizer, device="cuda:0")
+    elif scorer_name == "random":
+        return extraction.RandomScorer(seed=0)
     else:
         raise KeyError(scorer_name)
 
@@ -29,7 +31,7 @@ def main():
     parser.add_argument("--output_base_path", type=str, required=True,
                         help="Path to write processed outputs to")
     parser.add_argument("--scorer", type=str, default="rouge",
-                        help="{rouge, fasttext, dpr}")
+                        help="{rouge, fasttext, dpr, random}")
     parser.add_argument("--dpr_scorer_ctx_encoder", type=str, default="facebook/dpr-ctx_encoder-multiset-base",
                         help="dpr_scorer_ctx_encoder_path")
     parser.add_argument("--dpr_scorer_question_encoder", type=str,
@@ -39,6 +41,8 @@ def main():
                         help="dpr_scorer_tokenizer")
     parser.add_argument("--agent_ids", type=str, default=",".join([str(x) for x in range(20)]),
                         help="specific agent_ids")
+    parser.add_argument("--book_ids", type=str, default=None,
+                        help="specific book_ids")
     parser.add_argument("--max_word_count", type=int, default=300,
                         help="max number of words for summaries")
     parser.add_argument("--query_type", type=str, default="question",
@@ -58,7 +62,8 @@ def main():
             max_word_count=args.max_word_count,
             verbose=True,
             original_article=False,
-            agent_ids=args.agent_ids
+            agent_ids=args.agent_ids,
+            book_ids=args.book_ids
         )
 
     io.write_json(

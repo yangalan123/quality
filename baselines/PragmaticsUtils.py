@@ -23,14 +23,14 @@ class DPRScorer(Module):
         self.verbose = verbose
         self.unk_set = set()
 
-    def _convert_to_batch(self, string):
+    def _convert_to_batch(self, strings):
         # input = self.tokenizer(string, padding="max_length", truncation="only_first")
         # return {
         #     "input_ids": input['input_ids'].to(self.device),
         #     "attention_mask":
         # }
 
-        return {k: torch.tensor([v]).to(self.device) for k, v in self.tokenizer(string).items()}
+        return {k: v.to(self.device) for k, v in self.tokenizer(strings, padding='max_length', truncation='only_first', return_tensors='pt').items()}
 
     def _embed_context(self, context: str):
         context_batch = self._convert_to_batch(context)
@@ -45,16 +45,20 @@ class DPRScorer(Module):
         return out.pooler_output[0]
 
     def embed(self, strings, flag='question'):
-        ret = []
-        for string in strings:
-            _batch = self._convert_to_batch(string)
-            if flag == "question":
-                enc = self.question_encoder
-            else:
-                enc = self.context_encoder
-            out = enc(**_batch).pooler_output[0]
-            ret.append(out)
-        return torch.stack(ret)
+        # ret = []
+        if flag == "question":
+            enc = self.question_encoder
+        else:
+            enc = self.context_encoder
+        # for string in strings:
+        _batch = self._convert_to_batch(strings)
+        #print(_batch["input_ids"].size())
+        #exit()
+        ret = enc(**_batch).pooler_output
+            # out = enc(**_batch).pooler_output[0]
+            # ret.append(out)
+        # return torch.stack(ret)
+        return ret
 
 
     def score(self, reference: str, target: str):

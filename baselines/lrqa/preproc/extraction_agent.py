@@ -98,6 +98,32 @@ class SimpleScorer:
                 raise KeyError(which_score)
             sub_scores.append(score_value)
         return np.mean(sub_scores)
+class RandomScorer:
+    def __init__(self, metrics=(("rouge1", "r"),), use_stemmer=True, seed=0):
+        self.metrics = metrics
+        self.scorer = rouge_scorer.RougeScorer(
+            [metric[0] for metric in self.metrics],
+            use_stemmer=use_stemmer,
+        )
+        self.seed = seed
+        random.seed(seed)
+
+    def score(self, reference: str, target: str):
+        # scores = self.scorer.score(reference, target)
+        # sub_scores = []
+        # for metric, which_score in self.metrics:
+        #     score = scores[metric]
+        #     if which_score == "p":
+        #         score_value = score.precision
+        #     elif which_score == "r":
+        #         score_value = score.recall
+        #     elif which_score == "f":
+        #         score_value = score.fmeasure
+        #     else:
+        #         raise KeyError(which_score)
+        #     sub_scores.append(score_value)
+        # return np.mean(sub_scores)
+        return random.random()
 
 
 class FastTextScorer:
@@ -245,7 +271,7 @@ def get_top_sentences(query: str, sent_data: list, max_word_count: int, scorer: 
 
 
 def process_file(input_path, output_path, scorer: SimpleScorer, query_type="question", max_word_count=150,
-                 verbose=False, clean_text=True, original_article=False, agent_ids=None):
+                 verbose=False, clean_text=True, original_article=False, agent_ids=None, book_ids=None):
     data = read_jsonl(input_path)
     #num_agents = 5
     # for 5% 10% 15% exps
@@ -256,11 +282,22 @@ def process_file(input_path, output_path, scorer: SimpleScorer, query_type="ques
         _agent_ids = [int(x) for x in agent_ids.split(",")]
     else:
         _agent_ids = None
+    if book_ids is not None:
+        _book_ids = set([x for x in book_ids.split(",")])
+    else:
+        _book_ids = None
     for agent_i in range(num_agents):
+        if _agent_ids is not None:
+            if agent_i not in _agent_ids:
+                continue
         out = []
         #if agent_i >= 4:
             #break
         for row in maybe_tqdm(data, verbose=verbose):
+            article_id = row["article_id"]
+            if _book_ids is not None:
+                if article_id not in _book_ids:
+                    continue
             article = row['article']
             sent_data = get_sent_data(row["article"], clean_text=clean_text)
             if article not in agents_doc_to_ids:
@@ -270,9 +307,6 @@ def process_file(input_path, output_path, scorer: SimpleScorer, query_type="ques
                 #random.shuffle(sent_ids)
                 num_per_split = len(sent_ids) // num_agents
                 for split_i in range(num_agents):
-                    if _agent_ids is not None:
-                        if split_i not in _agent_ids:
-                            continue
                     #cur_split_ids = sent_ids[split_i * num_per_split: (split_i + 1) * num_per_split]
                     if split_i == 0:
                         if "first" in output_path:
@@ -297,10 +331,6 @@ def process_file(input_path, output_path, scorer: SimpleScorer, query_type="ques
                         print(len(item))
                     example_flag = False
             sent_data = agents_doc_to_ids[article][agent_i]
-            #i = 1
-            #while True:
-                #if f"question{i}" not in row:
-                    #break
             questions = row["questions"]
             for q in questions:
                 if "gold_label" in q:
