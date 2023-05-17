@@ -7,19 +7,23 @@ from datasets import load_dataset
 
 if __name__ == '__main__':
     #example_dir = "/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/dpr_agent_dpr_sum_combine_20splits_maxlen_150_100_concat/agent_8/prediction/validation_predictions.p"
-    # example_dir = "/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/dpr_agent_random_sum_combine_20splits_maxlen_150_150_rest_full_concat/agent_5/prediction/validation_predictions.p"
+    # example_dir = "/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/extractive_dpr_agent_first_20splits_maxlen150/agent_5/prediction/validation_predictions.p"
+    #example_dir = "/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/dpr_agent_random_sum_combine_20splits_maxlen_150_150_rest_full_concat/agent_5/prediction/validation_predictions.p"
     # example_dir = "/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/dpr_agent_random_sum_combine_20splits_maxlen_150_150_rest_agentwise_concat/agent_5/prediction/validation_predictions.p"
     # example_dir = "/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/dpr_agent_dpr_sum_combine_20splits_maxlen_150_150_rest_full_concat/agent_5/prediction/validation_predictions.p"
     # example_dir = "/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/dpr_agent_dpr_sum_combine_20splits_maxlen_150_concat/agent_5/prediction/validation_predictions.p"
     # example_dir = "/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/rltuned_dpr_agent_rest_20splits_maxlen150/bookwise_30029/agent_5/prediction/validation_predictions.p"
+    example_dir = "/data/chenghao/quality/baselines/experiment/t0_improved_prompt_output/first_300_qonly_150/T0pp/agent_5/validation_predictions.p"
+    # example_dir = "/data/chenghao/quality/baselines/experiment/t0_improved_prompt_output/first_300_rest_fulldpr_150/T0pp/agent_5/validation_predictions.p"
     ds = load_dataset("chromeNLP/quality", "dpr-first-0%-maxlen-150")
     ds_valid = ds['validation']
     all_perfs = []
     all_perfs_train = []
     all_perfs_test = []
     for seed in range(5):
+    # for seed in range(1):
         # example_dir = f"/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/rltuned_dpr_agent_rest_20splits_maxlen150/bookwise_30029_predfull/seed_{seed}/agent_5/prediction_full_book_10shot/validation_predictions.p"
-        example_dir = f"/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/rltuned_dpr_agent_rest_20splits_maxlen150/bookwise_30029_predfull/seed_{seed}/agent_0/prediction_full_book_10shot/validation_predictions.p"
+        # example_dir = f"/data/chenghao/quality/baselines/experiment/race_deberta_large_epoch_20/rltuned_dpr_agent_rest_20splits_maxlen150/bookwise_30029_predfull/seed_{seed}/agent_0/prediction_full_book_10shot/validation_predictions.p"
         prediction = torch.load(example_dir)
         bookid2perf = dict()
         bookid2perf_train = dict()
@@ -51,11 +55,17 @@ if __name__ == '__main__':
             if bookid != "30029":
                 continue
             if "rltuned" in example_dir:
-                pred_i = int(np.argmax(prediction[counter]))
-                assert 0 <= pred_i <= 3 and len(prediction[counter]) == 4
+                if len(prediction.shape) == 2:
+                    pred_i = int(np.argmax(prediction[counter]))
+                    assert 0 <= pred_i <= 3 and len(prediction[counter]) == 4
+                else:
+                    pred_i = prediction[counter]
             else:
-                pred_i = int(np.argmax(prediction[item_i]))
-                assert 0 <= pred_i <= 3 and len(prediction[item_i]) == 4
+                if len(prediction.shape) == 2:
+                    pred_i = int(np.argmax(prediction[item_i]))
+                    assert 0 <= pred_i <= 3 and len(prediction[item_i]) == 4
+                else:
+                    pred_i = prediction[item_i]
             if bookid not in bookid2perf:
                 bookid2perf[bookid] = [0, 0]
                 bookid2perf_train[bookid] = [0, 0]
